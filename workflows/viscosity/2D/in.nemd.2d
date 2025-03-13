@@ -52,9 +52,9 @@ fix		        2 all deform 1 xy erate ${xyrate} remap v
 
 # The average in each chunk is computed every 5000 timesteps using 250 samples taken at intervals of 
 # 20 timesteps from the preceding timesteps.
-# I think center means that coord1 is the center of the bin
-compute         layers all chunk/atom bin/1d y upper 0.05 units reduced
-fix		        4 all ave/chunk 20 250 5000 layers vx file profile.nemd.2d
+# For this case, there seems to be no difference between lower, center, and upper options.
+compute         layers_center all chunk/atom bin/1d y center 0.05 units reduced
+fix		        4 all ave/chunk 20 250 5000 layers_center vx file profile_center.nemd.2d
 
 compute		    usual all temp
 compute		    tilt all temp/deform
@@ -65,16 +65,25 @@ thermo_modify	temp tilt
 run		        50000
 
 # Data gathering run
+# This only takes into account the top and bottom velocity points to fit the linear profile
+# The viscosity is calculated from the slope of the linear profile
+variable        timestep equal step
 variable	    visc equal -pxy/(v_srate/ly)
-fix		        vave all ave/time 10 100 1000 v_visc ave running start 56000
 
-thermo_style	custom step temp press pxy v_visc f_vave
+# The average in each chunk is computed every 1000 timesteps using 100 samples taken at intervals of 
+# 10 timesteps from the preceding timesteps.
+# The running average sums the average the average values computed every 1000 timesteps
+fix             vprint all print 10 "${timestep} ${visc}" file viscosity_output.txt screen no
+fix		        vave all ave/time 10 100 1000 v_visc ave running start 56000 file viscosity_averages.txt
+
+thermo          1000
+thermo_style	custom step temp press pxy ly v_visc f_vave
 thermo_modify	temp tilt
 
 # only need to run for 5400 steps to make a good 100-frame movie
 # set 54K steps above in equil and 5400 here simply to make good movie
 # 54K and 5400 are multiples of box-swap periodicity = 2700 steps
 
-dump	        1 all custom 50 dump.nemd.2d id type x y z vx
+dump	        1 all custom 50 dump.nemd.2d id type x y z vx vy vz
 
 run		        50000
